@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>강 건너기 퍼즐 ⛵ (Animated Boat)</title>
+<style>
+  :root{
+    --bg:#f7fbff; --ink:#1f2937; --muted:#64748b; --accent:#0ea5e9;
+    --good:#16a34a; --bad:#ef4444; --card:#ffffffcc;
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Apple SD Gothic Neo,"Malgun Gothic",sans-serif;
+    color:var(--ink); background:
+      radial-gradient(900px 420px at 20% 10%, #fff7e6 0%, transparent 60%),
+      radial-gradient(900px 420px at 80% 20%, #e6f7ff 0%, transparent 60%),
+      radial-gradient(900px 420px at 50% 90%, #f6ffed 0%, transparent 60%), var(--bg);
+  }
+  .container{max-width:1100px;margin:0 auto;padding:20px}
+  .center-col{min-height:100dvh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+
+  /* Buttons */
+  .btn{display:block;width:min(420px,80vw);padding:14px 16px;border-radius:14px;border:1px solid #dbe5ef;
+      font-size:18px;font-weight:700;text-align:center;cursor:pointer;background:#fff;box-shadow:0 10px 24px rgba(0,0,0,.06);
+      transition:transform .15s ease,box-shadow .15s ease}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 16px 30px rgba(0,0,0,.08)}
+  .btn.primary{background:linear-gradient(180deg,#38bdf8,#0ea5e9);color:#fff;border:none}
+  .btn.ghost{background:#fff}
+  .btn.small{width:auto;padding:10px 14px;font-size:16px}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:10}
+  .modal{background:#fff;border-radius:16px;padding:20px;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+  .modal h3{margin:0 0 8px} .modal p{margin:8px 0 0;line-height:1.6;color:var(--muted)}
+
+  /* Game */
+  .hud{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 18px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:#eef6ff;color:#1d4ed8;border:1px solid #c7dbff;font-weight:700}
+  .hud .right{display:flex;gap:8px;align-items:center}
+
+  .board{position:relative;width:100%;height:520px;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;background:#dff3ff;box-shadow:0 10px 24px rgba(0,0,0,.06)}
+  /* River: vertical stripe */
+  .river{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:min(38%,420px);
+    background:linear-gradient(180deg, rgba(255,255,255,.4), rgba(255,255,255,0) 30%),
+               repeating-linear-gradient(180deg, rgba(255,255,255,.18) 0 6px, rgba(255,255,255,0) 6px 18px),
+               linear-gradient(180deg,#8dd7ff,#54b9f0 60%,#4aa8e0);}
+  .bank{position:absolute;top:0;bottom:0;width:31%;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px}
+  .bank.left{left:0} .bank.right{right:0}
+  .bank::before{content:"";position:absolute;top:0;bottom:0;width:18px;background:linear-gradient(180deg,#e7f6d3,#cfe9a6)}
+  .bank.left::before{right:0} .bank.right::before{left:0}
+  .bank-title{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-weight:800;background:#ffffffb5;padding:2px 10px;border-radius:999px;border:1px solid #e5e7eb}
+  .dock{display:flex;flex-wrap:wrap;gap:8px;z-index:2}
+
+  /* Boat wrapper with motion */
+  .boat-wrap{position:absolute;top:55%;transform:translate(-50%,-50%); /* left is set via JS */ 
+             transition:left 1s ease-in-out; /* motion duration */}
+  .boat{position:relative;width:320px;max-width:80%;height:110px;pointer-events:auto;border-radius:12px;background:#8b5a2b;
+        box-shadow:0 12px 0 #5a3817 inset,0 -8px 0 #b37a43 inset,0 20px 40px rgba(0,0,0,.25);border:2px solid #5a3817}
+  .boat::after{content:"";position:absolute;left:50%;top:-64px;width:6px;height:64px;background:#5a3817;box-shadow:0 2px 0 #00000022}
+  .flag{position:absolute;left:calc(50% + 3px);top:-54px;width:54px;height:24px;background:linear-gradient(90deg,#38bdf8,#0ea5e9);clip-path:polygon(0 0,100% 0,80% 50%,100% 100%,0 100%)}
+  .slots{position:absolute;left:8px;right:8px;bottom:8px;height:88px;display:flex;gap:10px;justify-content:center;align-items:flex-end}
+  .slot{width:80px;height:80px;border:2px dashed #ffffff99;border-radius:12px;background:#ffffff22;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;user-select:none}
+
+  /* Tokens */
+  .token{width:80px;height:80px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--card);
+         border:1px solid #e5e7eb;box-shadow:0 8px 20px rgba(0,0,0,.08);cursor:grab;user-select:none;font-size:42px}
+  .token:active{cursor:grabbing}
+  .token .label{font-size:12px;color:#334155;font-weight:800;position:absolute;bottom:6px;background:#fff;padding:1px 6px;border-radius:999px;border:1px solid #e5e7eb}
+
+  .hidden{display:none !important}
+
+  /* Result overlay */
+  .result{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:5}
+  .result .card{background:#fff;border-radius:18px;padding:24px;width:min(520px,88vw);text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.35)}
+  .result h2{margin:0 0 10px} .result p{margin:6px 0 16px;color:var(--muted)} .result .time{font-weight:800;color:#0f766e}
+
+  @media (max-width: 720px){
+    .board{height:560px}
+    .token{width:72px;height:72px;font-size:36px}
+    .slot{width:72px;height:72px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== MENU ===== -->
+<main id="menu" class="center-col">
+  <h1>강 건너기 퍼즐 ⛵</h1>
+  <button class="btn primary" id="startBtn">🚀 게임 실행</button>
+  <button class="btn ghost" id="rulesBtn">📜 게임 규칙</button>
+</main>
+
+<!-- Rules Modal -->
+<div id="rulesModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal">
+    <h3>게임 규칙</h3>
+    <p>
+      당신은 <b>늑대, 양, 양배추</b>를 보트로 강 건너편으로 옮겨야 합니다. 보트에는 반드시 <b>사람</b>이 타 있어야 하며,
+      한 번에 실을 수 있는 것은 <b>사람 + 1개</b>뿐입니다. 사람이 없는 둑에서 <b>늑대와 양</b>이 함께 남으면 양이 먹히고,
+      <b>양과 양배추</b>가 함께 남으면 양배추가 먹혀 <b>게임 오버</b>가 됩니다. 네 대상을 모두 안전하게 오른쪽 둑으로 옮겨 보세요!
+    </p>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn small ghost" id="rulesClose">닫기</button>
+      <button class="btn small primary" id="rulesStart">바로 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GAME ===== -->
+<section id="game" class="container hidden">
+  <div class="hud">
+    <div class="left">
+      <span class="pill">보트 위치: <b id="boatSideLabel">왼쪽 둑</b></span>
+      <span class="pill">경과시간: <b id="elapsed">00:00</b></span>
+    </div>
+    <div class="right">
+      <button class="btn small ghost" id="toMenu">메뉴</button>
+      <button class="btn small" id="reset">초기화</button>
+      <button class="btn small primary" id="moveBtn">⛵ 이동</button>
+    </div>
+  </div>
+
+  <div class="board" id="board">
+    <div class="bank left">
+      <div class="bank-title">🌿 왼쪽 둑</div>
+      <div class="dock" id="dock-left"></div>
+    </div>
+
+    <div class="river"></div>
+
+    <!-- 움직이는 보트 래퍼 (left %를 JS로 변경) -->
+    <div class="boat-wrap" id="boatWrap">
+      <div class="boat" id="boat">
+        <div class="flag"></div>
+        <div class="slots">
+          <div class="slot" data-slot="person">사람</div>
+          <div class="slot" data-slot="cargo">화물</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bank right">
+      <div class="bank-title">🏞️ 오른쪽 둑</div>
+      <div class="dock" id="dock-right"></div>
+    </div>
+
+    <!-- 결과 -->
+    <div class="result" id="overlay-win" aria-hidden="true">
+      <div class="card">
+        <h2>🏆 성공!</h2>
+        <p>모두 안전하게 강을 건넜습니다.</p>
+        <p class="time">클리어 시간: <span id="clearTime">00:00</span></p>
+        <button class="btn primary" id="replayWin">🔁 리플레이</button>
+      </div>
+    </div>
+
+    <div class="result" id="overlay-lose" aria-hidden="true">
+      <div class="card">
+        <h2>❌ 게임 오버</h2>
+        <p id="loseReason">규칙 위반으로 실패했습니다.</p>
+        <button class="btn primary" id="replayLose">🔁 다시 도전</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ========= State ========= */
+const $ = s => document.querySelector(s);
+const TOKENS = ['person','wolf','goat','cabbage'];
+const EMOJI  = {person:'🧍', wolf:'🐺', goat:'🐑', cabbage:'🥬'};
+const LABEL  = {person:'사람', wolf:'늑대', goat:'양', cabbage:'양배추'};
+
+const state = {
+  positions: { person:'L', wolf:'L', goat:'L', cabbage:'L' }, // 'L' | 'R' | 'BOAT'
+  boatSide : 'L',     // 'L' or 'R'
+  moving   : false,   // 애니메이션 중 잠금
+  startTs  : null,
+  timerId  : null
+};
+
+const leftDock  = $('#dock-left');
+const rightDock = $('#dock-right');
+const boat      = $('#boat');
+const boatWrap  = $('#boatWrap');
+const boatSideLabel = $('#boatSideLabel');
+const BOAT_SPEED_MS = 1000; // CSS transition과 동일하게
+
+/* ========= Helpers ========= */
+function boatLeftPercent(side){
+  // 보트가 강에서 왼쪽/오른쪽 가장자리 근처로 이동하도록 좌표 정의
+  // 보드 기준: 왼쪽 둑 31%, 강 38%, 오른쪽 둑 31%
+  // 강 안쪽 가장자리에서 약간 안쪽으로: 36% / 64%
+  return side === 'L' ? 36 : 64;
+}
+function formatTime(ms){
+  const s = Math.floor(ms/1000), m = Math.floor(s/60);
+  return `${m.toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+}
+function startTimer(){
+  state.startTs = Date.now();
+  clearInterval(state.timerId);
+  state.timerId = setInterval(()=> $('#elapsed').textContent = formatTime(Date.now()-state.startTs), 200);
+}
+function stopTimer(){ clearInterval(state.timerId); state.timerId = null; }
+
+/* ========= Build tokens ========= */
+const elements = {};
+function makeToken(name){
+  const el = document.createElement('div');
+  el.className = 'token';
+  el.draggable = true;
+  el.dataset.id = name;
+  el.innerHTML = `<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center">
+    <span>${EMOJI[name]}</span><span class="label">${LABEL[name]}</span></div>`;
+  el.addEventListener('dragstart', e=>{
+    if (state.moving){ e.preventDefault(); return; }
+    e.dataTransfer.setData('text/plain', name);
+  });
+  return el;
+}
+TOKENS.forEach(n => elements[n] = makeToken(n));
+
+/* ========= Rules ========= */
+function checkFail(){
+  const bank = { L:[], R:[] };
+  TOKENS.forEach(name=>{
+    const loc = state.positions[name]==='BOAT' ? state.boatSide : state.positions[name];
+    bank[loc].push(name);
+  });
+  if (!bank['L'].includes('person')){
+    if (bank['L'].includes('wolf') && bank['L'].includes('goat')) return '왼쪽 둑에서 늑대가 양을 먹었어요! 🐺➡️🐑';
+    if (bank['L'].includes('goat') && bank['L'].includes('cabbage')) return '왼쪽 둑에서 양이 양배추를 먹었어요! 🐑➡️🥬';
+  }
+  if (!bank['R'].includes('person')){
+    if (bank['R'].includes('wolf') && bank['R'].includes('goat')) return '오른쪽 둑에서 늑대가 양을 먹었어요! 🐺➡️🐑';
+    if (bank['R'].includes('goat') && bank['R'].includes('cabbage')) return '오른쪽 둑에서 양이 양배추를 먹었어요! 🐑➡️🥬';
+  }
+  return null;
+}
+function checkWin(){ return TOKENS.every(k => state.positions[k]==='R'); }
+
+/* ========= Render ========= */
+function render(){
+  leftDock.innerHTML = ''; rightDock.innerHTML = '';
+  TOKENS.forEach(name=>{
+    const pos = state.positions[name], el = elements[name];
+    if (pos==='L') leftDock.appendChild(el);
+    else if (pos==='R') rightDock.appendChild(el);
+    else if (pos==='BOAT'){
+      const slot = boat.querySelector(`[data-slot="${name==='person'?'person':'cargo'}"]`);
+      slot.innerHTML = ''; slot.appendChild(el);
+    }
+  });
+  const personSlot = boat.querySelector('[data-slot="person"]');
+  const cargoSlot  = boat.querySelector('[data-slot="cargo"]');
+  if (!personSlot.querySelector('.token')) personSlot.textContent = '사람';
+  if (!cargoSlot.querySelector('.token'))  cargoSlot.textContent  = '화물';
+
+  // 보트 위치 라벨 + 좌표
+  boatSideLabel.textContent = state.boatSide==='L' ? '왼쪽 둑' : '오른쪽 둑';
+  boatWrap.style.left = boatLeftPercent(state.boatSide) + '%';
+
+  // 엔드 스테이트
+  const lose = checkFail();
+  if (lose){ gameOver(lose); return; }
+  if (checkWin()){ win(); }
+}
+
+/* ========= DnD ========= */
+function onBoatDragOver(ev){ if (!state.moving) ev.preventDefault(); }
+function onDockDragOver(ev){ if (!state.moving) ev.preventDefault(); }
+
+boat.addEventListener('dragover', onBoatDragOver);
+boat.addEventListener('drop', ev=>{
+  if (state.moving) return;
+  ev.preventDefault();
+  const name = ev.dataTransfer.getData('text/plain'); if (!name) return;
+  const sameSide = (state.positions[name]===state.boatSide) || (state.positions[name]==='BOAT');
+  if (!sameSide) return; // 반대 둑 순간이동 금지
+  const personOn = state.positions.person==='BOAT';
+  const cargoOn  = ['wolf','goat','cabbage'].some(id=>state.positions[id]==='BOAT');
+  if (name==='person'){
+    state.positions.person='BOAT';
+  }else{
+    if (cargoOn && state.positions[name]!=='BOAT') return; // 화물 1개 제한
+    state.positions[name]='BOAT';
+  }
+  render();
+});
+[leftDock,rightDock].forEach(dock=>{
+  dock.addEventListener('dragover', onDockDragOver);
+  dock.addEventListener('drop', ev=>{
+    if (state.moving) return;
+    ev.preventDefault();
+    const name = ev.dataTransfer.getData('text/plain'); if (!name) return;
+    const targetSide = dock.id==='dock-left' ? 'L' : 'R';
+    if (state.boatSide!==targetSide) return;          // 보트 없는 둑 하선 금지
+    if (state.positions[name]!=='BOAT') return;       // 보트에 탄 경우만
+    state.positions[name]=targetSide; render();
+  });
+});
+
+/* ========= Motion: move boat with animation ========= */
+function moveBoat(){
+  if (state.moving) return;
+  if (state.positions.person!=='BOAT') return; // 사람 필수
+
+  state.moving = true;
+  // 다음 쪽으로 보트 위치만 먼저 바꿈(승객은 아직 BOAT 상태 유지)
+  state.boatSide = (state.boatSide==='L') ? 'R' : 'L';
+  // 애니메이션 트리거: left % 변경
+  boatWrap.style.left = boatLeftPercent(state.boatSide) + '%';
+
+  // 애니메이션 끝난 뒤 도착 처리(자동 하선)
+  const onDone = ()=>{
+    boatWrap.removeEventListener('transitionend', onDone);
+    const arrive = state.boatSide;
+    TOKENS.forEach(k=>{ if (state.positions[k]==='BOAT') state.positions[k]=arrive; });
+    state.moving = false;
+    render();
+  };
+  // transitionend가 브라우저 별로 안 잡히는 경우 대비 타임아웃 백업
+  boatWrap.addEventListener('transitionend', onDone, {once:true});
+  setTimeout(()=>{ if (state.moving) onDone(); }, BOAT_SPEED_MS + 80);
+}
+
+/* ========= Overlays ========= */
+function win(){ stopTimer(); $('#clearTime').textContent = formatTime(Date.now()-state.startTs); $('#overlay-win').style.display='flex'; }
+function gameOver(msg){ stopTimer(); $('#loseReason').textContent = msg || '규칙 위반으로 실패했습니다.'; $('#overlay-lose').style.display='flex'; }
+function hideOverlays(){ $('#overlay-win').style.display='none'; $('#overlay-lose').style.display='none'; }
+
+/* ========= Lifecycle ========= */
+function resetGame(){
+  state.positions = { person:'L', wolf:'L', goat:'L', cabbage:'L' };
+  state.boatSide = 'L'; state.moving=false; hideOverlays(); startTimer();
+  // 초기 보트 좌표 세팅(렌더 전에 위치 잡기)
+  boatWrap.style.left = boatLeftPercent('L') + '%';
+  render();
+}
+function enterGame(){ $('#menu').classList.add('hidden'); $('#game').classList.remove('hidden'); resetGame(); }
+function enterMenu(){ $('#menu').classList.remove('hidden'); $('#game').classList.add('hidden'); hideOverlays(); stopTimer(); }
+
+/* ========= Wire up ========= */
+document.getElementById('startBtn').addEventListener('click', enterGame);
+document.getElementById('rulesBtn').addEventListener('click', ()=> $('#rulesModal').style.display='flex');
+document.getElementById('rulesClose').addEventListener('click', ()=> $('#rulesModal').style.display='none');
+document.getElementById('rulesStart').addEventListener('click', ()=>{ $('#rulesModal').style.display='none'; enterGame(); });
+
+document.getElementById('moveBtn').addEventListener('click', moveBoat);
+document.getElementById('reset').addEventListener('click', resetGame);
+document.getElementById('toMenu').addEventListener('click', enterMenu);
+document.getElementById('replayWin').addEventListener('click', resetGame);
+document.getElementById('replayLose').addEventListener('click', resetGame);
+
+/* ========= Init ========= */
+(function initTokens(){
+  TOKENS.forEach(n => leftDock.appendChild(elements[n]));
+})();
+</script>
+</body>
+</html>
