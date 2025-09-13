@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>강 건너기 퍼즐 ⛵ (Wolf-Goat-Cabbage)</title>
+<style>
+  :root{
+    --bg:#f7fbff;
+    --ink:#1f2937;
+    --muted:#64748b;
+    --accent:#0ea5e9;
+    --good:#16a34a;
+    --bad:#ef4444;
+    --card:#ffffffcc;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, "Malgun Gothic", sans-serif;
+    color:var(--ink); background:
+      radial-gradient(900px 420px at 20% 10%, #fff7e6 0%, transparent 60%),
+      radial-gradient(900px 420px at 80% 20%, #e6f7ff 0%, transparent 60%),
+      radial-gradient(900px 420px at 50% 90%, #f6ffed 0%, transparent 60%), var(--bg);
+  }
+  .container{max-width:1100px;margin:0 auto;padding:20px}
+  .center-col{min-height:100dvh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+
+  /* Buttons */
+  .btn{
+    display:block; width:min(420px,80vw);
+    padding:14px 16px; border-radius:14px; border:1px solid #dbe5ef;
+    font-size:18px; font-weight:700; text-align:center; cursor:pointer;
+    background:#fff; box-shadow:0 10px 24px rgba(0,0,0,.06);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover{ transform:translateY(-2px); box-shadow:0 16px 30px rgba(0,0,0,.08); }
+  .btn.primary{ background:linear-gradient(180deg,#38bdf8,#0ea5e9); color:white; border:none; }
+  .btn.ghost{ background:#fff; }
+  .btn.small{ width:auto; padding:10px 14px; font-size:16px; }
+
+  /* Modal */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.35);
+    display:none; align-items:center; justify-content:center; z-index:10;
+  }
+  .modal{ background:#fff; border-radius:16px; padding:20px; max-width:640px; box-shadow:0 20px 60px rgba(0,0,0,.25)}
+  .modal h3{ margin:0 0 8px 0 }
+  .modal p{ margin:8px 0 0 0; line-height:1.6; color:var(--muted)}
+
+  /* Game */
+  .hud{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 18px 0; flex-wrap:wrap;}
+  .pill{ padding:6px 10px; border-radius:999px; background:#eef6ff; color:#1d4ed8; border:1px solid #c7dbff; font-weight:700; }
+  .hud .right { display:flex; gap:8px; align-items:center; }
+
+  .board{
+    position:relative; width:100%; height:520px; border-radius:18px;
+    overflow:hidden; border:1px solid #e5e7eb; background:#dff3ff;
+    box-shadow:0 10px 24px rgba(0,0,0,.06);
+  }
+  /* River: vertical stripe */
+  .river{
+    position:absolute; top:0; bottom:0; left:50%; transform:translateX(-50%);
+    width:min(38%, 420px);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.4), rgba(255,255,255,0) 30%),
+      repeating-linear-gradient(180deg, rgba(255,255,255,.18) 0 6px, rgba(255,255,255,0) 6px 18px),
+      linear-gradient(180deg, #8dd7ff, #54b9f0 60%, #4aa8e0);
+  }
+  .bank{
+    position:absolute; top:0; bottom:0; width:31%;
+    display:flex; flex-direction:column; justify-content:flex-end; gap:8px; padding:10px;
+  }
+  .bank.left{ left:0; }
+  .bank.right{ right:0; }
+  .bank::before{
+    content:""; position:absolute; top:0; bottom:0; width:18px;
+    background:linear-gradient(180deg,#e7f6d3,#cfe9a6);
+  }
+  .bank.left::before{ right:0; }
+  .bank.right::before{ left:0; }
+  .bank-title{position:absolute; top:8px; left:50%; transform:translateX(-50%); font-weight:800; background:#ffffffb5; padding:2px 10px; border-radius:999px; border:1px solid #e5e7eb}
+  .dock{ display:flex; flex-wrap:wrap; gap:8px; z-index:2; }
+
+  /* Boat area */
+  .boat-area{
+    position:absolute; top:55%; transform:translateY(-50%);
+    width:38%; left:31%; height:220px; display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
+  }
+  .boat{
+    position:relative; width:320px; max-width:80%; height:110px; pointer-events:auto;
+    border-radius:12px; background:#8b5a2b;
+    box-shadow:0 12px 0 #5a3817 inset, 0 -8px 0 #b37a43 inset, 0 20px 40px rgba(0,0,0,.25);
+    border:2px solid #5a3817;
+  }
+  .boat::after{ /* mast & flag - just cute */
+    content:""; position:absolute; left:50%; top:-64px; width:6px; height:64px; background:#5a3817;
+    box-shadow:0 2px 0 #00000022;
+  }
+  .flag{ position:absolute; left:calc(50% + 3px); top:-54px; width:54px; height:24px; background:linear-gradient(90deg,#38bdf8,#0ea5e9); clip-path:polygon(0 0,100% 0,80% 50%,100% 100%,0 100%); }
+
+  .slots{ position:absolute; left:8px; right:8px; bottom:8px; height:88px; display:flex; gap:10px; justify-content:center; align-items:flex-end; }
+  .slot{
+    width:80px; height:80px; border:2px dashed #ffffff99; border-radius:12px; background:#ffffff22;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; user-select:none;
+  }
+
+  /* Tokens (draggables) */
+  .token{
+    width:80px; height:80px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    background:var(--card); border:1px solid #e5e7eb; box-shadow:0 8px 20px rgba(0,0,0,.08);
+    cursor:grab; user-select:none; font-size:42px;
+  }
+  .token:active{ cursor:grabbing; }
+  .token .label{ font-size:12px; color:#334155; font-weight:800; position:absolute; bottom:6px; background:#fff; padding:1px 6px; border-radius:999px; border:1px solid #e5e7eb }
+
+  .hidden{ display:none !important }
+
+  /* Result overlay */
+  .result{
+    position:absolute; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:5;
+  }
+  .result .card{
+    background:#fff; border-radius:18px; padding:24px; width:min(520px, 88vw); text-align:center;
+    box-shadow:0 24px 80px rgba(0,0,0,.35);
+  }
+  .result h2{ margin:0 0 10px 0 }
+  .result p{ margin:6px 0 16px 0; color:var(--muted); }
+  .result .time{ font-weight:800; color:#0f766e }
+
+  /* Helper (mobile) */
+  @media (max-width: 720px){
+    .board{ height:560px }
+    .token{ width:72px; height:72px; font-size:36px }
+    .slot{ width:72px; height:72px }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ MENU ============ -->
+<main id="menu" class="center-col">
+  <h1>강 건너기 퍼즐 ⛵</h1>
+  <button class="btn primary" id="startBtn">🚀 게임 실행</button>
+  <button class="btn ghost" id="rulesBtn">📜 게임 규칙</button>
+</main>
+
+<!-- Rules Modal -->
+<div id="rulesModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal">
+    <h3>게임 규칙</h3>
+    <p>
+      당신은 <b>늑대, 양, 양배추</b>를 보트로 강 건너편으로 옮겨야 합니다. 보트에는 항상 <b>사람</b>이 타야 하며,
+      한 번에 <b>사람 + 1개 이하</b>만 이동할 수 있습니다. 사람이 없는 둑에서 <b>늑대와 양</b>이 함께 남으면 양이 먹히고,
+      <b>양과 양배추</b>가 함께 남으면 양배추가 먹혀 <b>게임 오버</b>가 됩니다. 네 대상을 모두 안전하게 오른쪽 둑으로 옮겨 보세요!
+    </p>
+    <div style="margin-top:14px; display:flex; gap:8px; justify-content:flex-end">
+      <button class="btn small ghost" id="rulesClose">닫기</button>
+      <button class="btn small primary" id="rulesStart">바로 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ GAME ============ -->
+<section id="game" class="container hidden">
+  <div class="hud">
+    <div class="left">
+      <span class="pill">보트 위치: <b id="boatSideLabel">왼쪽 둑</b></span>
+      <span class="pill">경과시간: <b id="elapsed">00:00</b></span>
+    </div>
+    <div class="right">
+      <button class="btn small ghost" id="toMenu">메뉴</button>
+      <button class="btn small" id="reset">초기화</button>
+      <button class="btn small primary" id="moveBtn">⛵ 이동</button>
+    </div>
+  </div>
+
+  <div class="board" id="board">
+    <div class="bank left">
+      <div class="bank-title">🌿 왼쪽 둑</div>
+      <div class="dock" id="dock-left"></div>
+    </div>
+
+    <div class="river"></div>
+
+    <div class="boat-area">
+      <div class="boat" id="boat">
+        <div class="flag"></div>
+        <div class="slots">
+          <div class="slot" data-slot="person">사람</div>
+          <div class="slot" data-slot="cargo">화물</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bank right">
+      <div class="bank-title">🏞️ 오른쪽 둑</div>
+      <div class="dock" id="dock-right"></div>
+    </div>
+
+    <!-- Result overlays -->
+    <div class="result" id="overlay-win" aria-hidden="true">
+      <div class="card">
+        <h2>🏆 성공!</h2>
+        <p>모두 안전하게 강을 건넜습니다.</p>
+        <p class="time">클리어 시간: <span id="clearTime">00:00</span></p>
+        <button class="btn primary" id="replayWin">🔁 리플레이</button>
+      </div>
+    </div>
+
+    <div class="result" id="overlay-lose" aria-hidden="true">
+      <div class="card">
+        <h2>❌ 게임 오버</h2>
+        <p id="loseReason">규칙 위반으로 실패했습니다.</p>
+        <button class="btn primary" id="replayLose">🔁 다시 도전</button>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+/* =========================
+   State & Utilities
+========================= */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+const state = {
+  // positions: 'L' | 'R' | 'BOAT'
+  positions: { person:'L', wolf:'L', goat:'L', cabbage:'L' },
+  boatSide: 'L',       // 'L' or 'R'
+  startTs: null,       // ms
+  timerId: null
+};
+const EMOJI = { person:'🧍', wolf:'🐺', goat:'🐑', cabbage:'🥬' };
+const LABEL = { person:'사람', wolf:'늑대', goat:'양', cabbage:'양배추' };
+
+function formatTime(ms){
+  const s = Math.floor(ms/1000);
+  const m = Math.floor(s/60);
+  const ss = (s%60).toString().padStart(2,'0');
+  return `${m.toString().padStart(2,'0')}:${ss}`;
+}
+function startTimer(){
+  state.startTs = Date.now();
+  if (state.timerId) clearInterval(state.timerId);
+  state.timerId = setInterval(()=>{
+    $('#elapsed').textContent = formatTime(Date.now()-state.startTs);
+  }, 250);
+}
+function stopTimer(){
+  if (state.timerId) clearInterval(state.timerId);
+  state.timerId = null;
+}
+
+/* =========================
+   DOM: build tokens
+========================= */
+const leftDock = $('#dock-left');
+const rightDock = $('#dock-right');
+const boat = $('#boat');
+const boatSideLabel = $('#boatSideLabel');
+
+const TOKENS = ['person','wolf','goat','cabbage'];
+
+function makeToken(name){
+  const el = document.createElement('div');
+  el.className = 'token';
+  el.draggable = true;
+  el.dataset.id = name;
+  el.innerHTML = `<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center">
+      <span style="pointer-events:none">${EMOJI[name]}</span>
+      <span class="label">${LABEL[name]}</span>
+    </div>`;
+  // Drag events
+  el.addEventListener('dragstart', e=>{
+    e.dataTransfer.setData('text/plain', name);
+    setTimeout(()=> el.classList.add('dragging'), 0);
+  });
+  el.addEventListener('dragend', e=>{
+    el.classList.remove('dragging');
+  });
+  return el;
+}
+
+const elements = {}; // name -> element
+TOKENS.forEach(name => elements[name] = makeToken(name));
+
+/* =========================
+   Rendering (positions -> DOM)
+========================= */
+function render(){
+  // clear docks
+  leftDock.innerHTML = '';
+  rightDock.innerHTML = '';
+
+  // place tokens based on state
+  TOKENS.forEach(name=>{
+    const pos = state.positions[name];
+    const el = elements[name];
+    el.classList.remove('hidden');
+
+    if (pos === 'L') leftDock.appendChild(el);
+    else if (pos === 'R') rightDock.appendChild(el);
+    else if (pos === 'BOAT') {
+      // place onto boat slot
+      const slotEl = boat.querySelector(`[data-slot="${name==='person'?'person':'cargo'}"]`);
+      slotEl.innerHTML = '';
+      slotEl.appendChild(el);
+    }
+  });
+
+  // Update empty slot placeholders
+  const personSlot = boat.querySelector('[data-slot="person"]');
+  const cargoSlot = boat.querySelector('[data-slot="cargo"]');
+  if (!personSlot.querySelector('.token')) personSlot.textContent = '사람';
+  if (!cargoSlot.querySelector('.token'))  cargoSlot.textContent  = '화물';
+
+  // label
+  boatSideLabel.textContent = state.boatSide === 'L' ? '왼쪽 둑' : '오른쪽 둑';
+
+  // Check end states
+  const lose = checkFail();
+  if (lose){
+    gameOver(lose);
+    return;
+  }
+  if (checkWin()){
+    win();
+  }
+}
+
+/* =========================
+   Rules
+========================= */
+function checkFail(){
+  // If any bank w/o person has (wolf+goat) OR (goat+cabbage)
+  const bank = { L:[], R:[] };
+  TOKENS.forEach(name=>{
+    const p = state.positions[name]==='BOAT' ? state.boatSide : state.positions[name];
+    bank[p].push(name);
+  });
+
+  // When person not on that bank
+  if (!bank['L'].includes('person')){
+    if (bank['L'].includes('wolf') && bank['L'].includes('goat')) return '왼쪽 둑에서 늑대가 양을 먹어버렸어요! 🐺➡️🐑';
+    if (bank['L'].includes('goat') && bank['L'].includes('cabbage')) return '왼쪽 둑에서 양이 양배추를 먹어버렸어요! 🐑➡️🥬';
+  }
+  if (!bank['R'].includes('person')){
+    if (bank['R'].includes('wolf') && bank['R'].includes('goat')) return '오른쪽 둑에서 늑대가 양을 먹어버렸어요! 🐺➡️🐑';
+    if (bank['R'].includes('goat') && bank['R'].includes('cabbage')) return '오른쪽 둑에서 양이 양배추를 먹어버렸어요! 🐑➡️🥬';
+  }
+  return null;
+}
+function checkWin(){
+  return TOKENS.every(k => (state.positions[k] === 'R'));
+}
+
+/* =========================
+   Drag & Drop
+========================= */
+function allowDropBoat(ev){
+  // allow dragover only if token's current side matches boat side
+  ev.preventDefault();
+}
+function allowDropDock(ev){
+  // we allow dropping tokens onto dock only if that dock is
+  // same as boat side AND the token is currently on boat (to unload manually)
+  ev.preventDefault();
+}
+
+boat.addEventListener('dragover', allowDropBoat);
+boat.addEventListener('drop', ev=>{
+  ev.preventDefault();
+  const name = ev.dataTransfer.getData('text/plain');
+  if (!name) return;
+
+  const onSameSide =
+    (state.positions[name] === state.boatSide) || (state.positions[name] === 'BOAT');
+
+  if (!onSameSide){
+    // Can't teleport from opposite bank
+    blinkRed(boat);
+    return;
+  }
+
+  // Boat capacity: person slot must contain 'person' token for movement,
+  // but during loading we allow placing person OR one cargo.
+  const personOnBoat = (state.positions.person === 'BOAT');
+  const cargoOnBoat = ['wolf','goat','cabbage'].some(id=>state.positions[id]==='BOAT');
+
+  if (name === 'person'){
+    // move person to boat (from same side)
+    state.positions.person = 'BOAT';
+  } else {
+    // cargo
+    if (!personOnBoat && cargoOnBoat){
+      // would exceed cargo slot? (we only have 1)
+      toast('보트에는 화물은 한 번에 하나만 탈 수 있어요.');
+      return;
+    }
+    if (cargoOnBoat && state.positions[name] !== 'BOAT'){
+      toast('이미 화물이 탑승 중이에요.');
+      return;
+    }
+    state.positions[name] = 'BOAT';
+  }
+  render();
+});
+
+leftDock.addEventListener('dragover', allowDropDock);
+rightDock.addEventListener('dragover', allowDropDock);
+
+[leftDock, rightDock].forEach(dock=>{
+  dock.addEventListener('drop', ev=>{
+    ev.preventDefault();
+    const name = ev.dataTransfer.getData('text/plain');
+    if (!name) return;
+    // Only allow unload from boat to the dock that matches boatSide
+    const targetSide = (dock.id === 'dock-left') ? 'L' : 'R';
+    if (state.boatSide !== targetSide){
+      toast('보트가 없는 쪽에는 내릴 수 없어요.');
+      return;
+    }
+    if (state.positions[name] !== 'BOAT'){
+      toast('보트에 타고 있는 대상만 내릴 수 있어요.');
+      return;
+    }
+    state.positions[name] = targetSide;
+    render();
+  });
+});
+
+/* =========================
+   Move Boat
+========================= */
+function moveBoat(){
+  // movement rules: person must be on boat
+  if (state.positions.person !== 'BOAT'){
+    toast('사람이 보트에 타야 이동할 수 있어요. 🧍⛵');
+    blinkRed(boat);
+    return;
+  }
+  // capacity is fine (0 or 1 cargo). No extra checks needed here.
+
+  // Move
+  state.boatSide = (state.boatSide === 'L') ? 'R' : 'L';
+
+  // Auto-unload at arrival:
+  // Person disembarks to the new side; any cargo on boat also disembarks.
+  const newSide = state.boatSide;
+  TOKENS.forEach(name=>{
+    if (state.positions[name] === 'BOAT'){
+      state.positions[name] = newSide;
+    }
+  });
+
+  render();
+}
+
+/* =========================
+   Overlays & UI helpers
+========================= */
+function win(){
+  stopTimer();
+  $('#clearTime').textContent = formatTime(Date.now()-state.startTs);
+  $('#overlay-win').style.display = 'flex';
+}
+function gameOver(reason){
+  stopTimer();
+  $('#loseReason').textContent = reason || '규칙 위반으로 실패했습니다.';
+  $('#overlay-lose').style.display = 'flex';
+}
+function hideOverlays(){
+  $('#overlay-win').style.display = 'none';
+  $('#overlay-lose').style.display = 'none';
+}
+
+let toastTimer = null;
+function toast(msg){
+  // tiny toast using title attribute + alert fallback
+  // (simplified to avoid extra DOM)
+  console.log('[toast]', msg);
+}
+function blinkRed(el){
+  const old = el.style.boxShadow;
+  el.style.boxShadow = '0 0 0 3px rgba(239,68,68,.8)';
+  setTimeout(()=> el.style.boxShadow = old, 220);
+}
+
+/* =========================
+   Game lifecycle
+========================= */
+function resetGame(){
+  state.positions = { person:'L', wolf:'L', goat:'L', cabbage:'L' };
+  state.boatSide = 'L';
+  hideOverlays();
+  startTimer();
+  render();
+}
+
+function enterGame(){
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('game').classList.remove('hidden');
+  resetGame();
+}
+function enterMenu(){
+  document.getElementById('menu').classList.remove('hidden');
+  document.getElementById('game').classList.add('hidden');
+  hideOverlays();
+  stopTimer();
+}
+
+/* =========================
+   Wire up menu & controls
+========================= */
+document.getElementById('startBtn').addEventListener('click', enterGame);
+
+document.getElementById('rulesBtn').addEventListener('click', ()=>{
+  document.getElementById('rulesModal').style.display = 'flex';
+});
+document.getElementById('rulesClose').addEventListener('click', ()=>{
+  document.getElementById('rulesModal').style.display = 'none';
+});
+document.getElementById('rulesStart').addEventListener('click', ()=>{
+  document.getElementById('rulesModal').style.display = 'none';
+  enterGame();
+});
+
+document.getElementById('moveBtn').addEventListener('click', moveBoat);
+document.getElementById('reset').addEventListener('click', resetGame);
+document.getElementById('toMenu').addEventListener('click', enterMenu);
+
+document.getElementById('replayWin').addEventListener('click', resetGame);
+document.getElementById('replayLose').addEventListener('click', resetGame);
+
+/* =========================
+   Init (build initial tokens on left dock)
+========================= */
+function initTokens(){
+  TOKENS.forEach(name => leftDock.appendChild(elements[name]));
+}
+initTokens();
+</script>
+</body>
+</html>
