@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>강 건너기 퍼즐 ⛵ (Stages)</title>
+<style>
+  :root {
+    --bg:#f4fbff; --ink:#1f2937; --muted:#64748b; --accent:#0ea5e9;
+    --good:#16a34a; --bad:#ef4444; --card:#ffffffcc;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Apple SD Gothic Neo,"Malgun Gothic",sans-serif;background:var(--bg)}
+
+  .center-col{min-height:100dvh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+
+  /* Buttons */
+  .btn{padding:12px 18px;border-radius:14px;border:1px solid #dbe5ef;font-size:18px;font-weight:700;cursor:pointer;background:#fff;
+       box-shadow:0 6px 14px rgba(0,0,0,.06);transition:transform .15s ease,box-shadow .15s ease}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 12px 20px rgba(0,0,0,.1)}
+  .btn.primary{background:linear-gradient(180deg,#38bdf8,#0ea5e9);color:#fff;border:none}
+  .btn.small{font-size:15px;padding:8px 12px}
+  .btn.next{background:linear-gradient(180deg,#34d399,#059669);color:#fff;border:none}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:100}
+  .modal{background:#fff;border-radius:16px;padding:20px;max-width:600px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+  .modal h3{margin:0 0 8px} .modal p{margin:0;line-height:1.6;color:var(--muted)}
+
+  /* Board */
+  .hud{display:flex;justify-content:space-between;align-items:center;margin:10px 0 18px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border-radius:999px;background:#eef6ff;color:#1d4ed8;border:1px solid #c7dbff;font-weight:700}
+  .board{position:relative;width:100%;height:540px;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;background:#dff3ff;
+         box-shadow:0 10px 24px rgba(0,0,0,.06)}
+  .river{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:40%;
+    background:repeating-radial-gradient(circle at 20px 20px,#8dd7ff 0 20px,#54b9f0 20px 40px);
+    animation:wave 6s linear infinite;}
+  @keyframes wave {
+    from { background-position:0 0; }
+    to   { background-position:80px 40px; }
+  }
+  .bank{position:absolute;top:0;bottom:0;width:30%;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px;
+        background:linear-gradient(#cfe9a6,#a7d47d);box-shadow:inset 0 8px 14px rgba(0,0,0,.25)}
+  .bank.left{left:0;} .bank.right{right:0;}
+  .bank-title{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-weight:800;background:#ffffffcc;padding:2px 10px;border-radius:999px}
+
+  /* Boat motion */
+  .boat-wrap{position:absolute;top:55%;transform:translate(-50%,-50%);transition:left 1.2s cubic-bezier(0.65,0,0.35,1);}
+  .boat-wrap.moving{animation:bob 0.5s ease-in-out infinite alternate;}
+  @keyframes bob {from{transform:translate(-50%,-50%) rotate(-1deg)} to{transform:translate(-50%,-52%) rotate(1deg)}}
+  .boat{position:relative;width:320px;max-width:80%;height:110px;background:#8b5a2b;border-radius:12px;
+        box-shadow:0 12px 0 #5a3817 inset,0 -8px 0 #b37a43 inset,0 20px 40px rgba(0,0,0,.25)}
+  .slots{position:absolute;left:8px;right:8px;bottom:8px;height:88px;display:flex;gap:10px;justify-content:center;align-items:flex-end}
+  .slot{width:80px;height:80px;border:2px dashed #ffffff99;border-radius:12px;background:#ffffff22;
+        display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+
+  /* Tokens */
+  .token{width:80px;height:80px;border-radius:16px;background:var(--card);border:1px solid #e5e7eb;
+         box-shadow:0 6px 12px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:42px;
+         cursor:grab;transition:transform .1s ease;}
+  .token:hover{transform:scale(1.05)}
+
+  /* Overlay */
+  .result{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:10}
+  .result .card{background:#fff;border-radius:18px;padding:24px;width:min(520px,88vw);text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.35)}
+  .result h2{margin:0 0 10px} .result p{margin:6px 0 16px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- 초기 메뉴 -->
+<main id="menu" class="center-col">
+  <h1>강 건너기 퍼즐 ⛵</h1>
+  <button class="btn primary" id="startBtn">🚀 게임 시작</button>
+</main>
+
+<!-- 규칙 모달 -->
+<div id="rulesModal" class="modal-backdrop">
+  <div class="modal">
+    <h3>게임 규칙</h3>
+    <p id="ruleText"></p>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn small primary" id="closeRules">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 게임 화면 -->
+<section id="game" class="container hidden">
+  <div class="hud">
+    <div class="left">
+      <span class="pill">보트 위치: <b id="boatSideLabel"></b></span>
+      <span class="pill">경과시간: <b id="elapsed">00:00</b></span>
+    </div>
+    <div class="right">
+      <button class="btn small ghost" id="rulesBtn">📜 규칙</button>
+      <button class="btn small ghost" id="resetBtn">↺ 리셋</button>
+      <button class="btn small primary" id="moveBtn">⛵ 이동</button>
+    </div>
+  </div>
+
+  <div class="board">
+    <div class="bank left"><div class="bank-title">왼쪽 둑</div><div class="dock" id="dock-left"></div></div>
+    <div class="river"></div>
+    <div class="boat-wrap" id="boatWrap"><div class="boat"><div class="slots"><div class="slot" data-slot="person">사람</div><div class="slot" data-slot="cargo">화물</div></div></div></div>
+    <div class="bank right"><div class="bank-title">오른쪽 둑</div><div class="dock" id="dock-right"></div></div>
+
+    <!-- 결과 -->
+    <div class="result" id="overlay">
+      <div class="card">
+        <h2 id="overlayTitle"></h2>
+        <p id="overlayMsg"></p>
+        <p id="timeMsg"></p>
+        <button class="btn next" id="nextBtn">다음 스테이지</button>
+        <button class="btn primary" id="replayBtn">다시 도전</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+const STAGES = [
+  {
+    name:"늑대-양-양배추",
+    tokens:["person","wolf","goat","cabbage"],
+    capacity:2, // 사람+1
+    ruleText:"보트에는 반드시 사람이 타야 하며, 한 번에 사람+1개만 옮길 수 있습니다. 사람이 없는 둑에 늑대+양 또는 양+양배추가 남으면 게임 오버!",
+    checkFail:(positions,boatSide)=>{
+      const bank={L:[],R:[]};
+      for (let t in positions){
+        const p=positions[t]==='BOAT'?boatSide:positions[t];
+        bank[p].push(t);
+      }
+      if(!bank.L.includes('person')){
+        if(bank.L.includes('wolf')&&bank.L.includes('goat'))return"왼쪽 둑에서 늑대가 양을 먹었습니다!";
+        if(bank.L.includes('goat')&&bank.L.includes('cabbage'))return"왼쪽 둑에서 양이 양배추를 먹었습니다!";
+      }
+      if(!bank.R.includes('person')){
+        if(bank.R.includes('wolf')&&bank.R.includes('goat'))return"오른쪽 둑에서 늑대가 양을 먹었습니다!";
+        if(bank.R.includes('goat')&&bank.R.includes('cabbage'))return"오른쪽 둑에서 양이 양배추를 먹었습니다!";
+      }
+      return null;
+    }
+  },
+  {
+    name:"선교사-식인종",
+    tokens:["M1","M2","M3","C1","C2","C3"],
+    capacity:2,
+    ruleText:"배에는 최대 2명까지 탈 수 있으며, 어떤 둑에서든 식인종 수가 선교사 수보다 많으면 게임 오버!",
+    checkFail:(positions,boatSide)=>{
+      const bank={L:{M:0,C:0},R:{M:0,C:0}};
+      for (let t in positions){
+        const side=positions[t]==='BOAT'?boatSide:positions[t];
+        if(t.startsWith('M'))bank[side].M++;
+        else bank[side].C++;
+      }
+      for(let side of ['L','R']){
+        if(bank[side].M>0 && bank[side].C>bank[side].M) return `${side==='L'?'왼쪽':'오른쪽'} 둑에서 식인종이 선교사를 잡아먹었습니다!`;
+      }
+      return null;
+    }
+  }
+];
+
+let state={stageIndex:0,positions:{},boatSide:'L',moving:false,startTs:null,timerId:null};
+const $=s=>document.querySelector(s);
+const leftDock=$("#dock-left"),rightDock=$("#dock-right"),boatWrap=$("#boatWrap");
+const personSlot=document.querySelector('[data-slot="person"]');
+const cargoSlot=document.querySelector('[data-slot="cargo"]');
+const overlay=$("#overlay"),overlayTitle=$("#overlayTitle"),overlayMsg=$("#overlayMsg"),timeMsg=$("#timeMsg");
+const nextBtn=$("#nextBtn"),replayBtn=$("#replayBtn");
+
+function startStage(idx){
+  state.stageIndex=idx;state.boatSide='L';state.moving=false;
+  state.positions={};for(const t of STAGES[idx].tokens)state.positions[t]='L';
+  boatWrap.style.left="36%";
+  $("#ruleText").textContent=STAGES[idx].ruleText;
+  startTimer();render();
+}
+function render(){
+  leftDock.innerHTML='';rightDock.innerHTML='';
+  for(const t of STAGES[state.stageIndex].tokens){
+    const pos=state.positions[t];
+    const el=makeToken(t);
+    if(pos==='L')leftDock.appendChild(el);
+    else if(pos==='R')rightDock.appendChild(el);
+    else if(pos==='BOAT'){
+      (personSlot.querySelector('.token')?cargoSlot:personSlot).appendChild(el);
+    }
+  }
+  if(!personSlot.querySelector('.token'))personSlot.textContent='사람';
+  if(!cargoSlot.querySelector('.token'))cargoSlot.textContent='화물';
+  $("#boatSideLabel").textContent=state.boatSide==='L'?'왼쪽 둑':'오른쪽 둑';
+  const fail=STAGES[state.stageIndex].checkFail(state.positions,state.boatSide);
+  if(fail)return showOverlay(false,fail);
+  if(Object.values(state.positions).every(v=>'R'===v))return showOverlay(true,"성공!");
+}
+function makeToken(name){
+  const el=document.createElement('div');el.className='token';el.draggable=true;
+  el.textContent=emoji(name);
+  el.addEventListener('dragstart',e=>{
+    if(state.moving)e.preventDefault();
+    else e.dataTransfer.setData('text/plain',name);
+  });
+  return el;
+}
+function emoji(name){
+  if(name==='person')return'🧍';if(name==='wolf')return'🐺';
+  if(name==='goat')return'🐑';if(name==='cabbage')return'🥬';
+  return name.startsWith('M')?'🧑‍🦳':'🧛';
+}
+function moveBoat(){
+  if(state.moving)return;
+  const stage=STAGES[state.stageIndex];
+  const boatCount=Object.values(state.positions).filter(v=>v==='BOAT').length;
+  if(boatCount===0)return;
+  if(stage===STAGES[0] && !Object.keys(state.positions).some(k=>k==='person'&&state.positions[k]==='BOAT'))return;
+  if(boatCount>stage.capacity)return;
+  state.boatSide=state.boatSide==='L'?'R':'L';state.moving=true;
+  boatWrap.classList.add('moving');
+  boatWrap.style.left=state.boatSide==='L'?'36%':'64%';
+  setTimeout(()=>{
+    boatWrap.classList.remove('moving');
+    for(const k in state.positions)if(state.positions[k]==='BOAT')state.positions[k]=state.boatSide;
+    state.moving=false;render();
+  },1200);
+}
+function showOverlay(success,msg){
+  stopTimer();overlay.style.display='flex';
+  overlayTitle.textContent=success?'🎉 성공!':'❌ 실패';
+  overlayMsg.textContent=msg;timeMsg.textContent=`기록: ${formatTime(Date.now()-state.startTs)}`;
+  nextBtn.style.display=success && state.stageIndex<STAGES.length-1?'inline-block':'none';
+  replayBtn.style.display='inline-block';
+}
+function startTimer(){
+  state.startTs=Date.now();clearInterval(state.timerId);
+  state.timerId=setInterval(()=>$("#elapsed").textContent=formatTime(Date.now()-state.startTs),250);
+}
+function stopTimer(){clearInterval(state.timerId);}
+function formatTime(ms){const s=Math.floor(ms/1000),m=Math.floor(s/60);return`${m}:${(s%60).toString().padStart(2,'0')}`}
+
+/* Drag target setup */
+document.querySelector('.board').addEventListener('dragover',e=>e.preventDefault());
+document.querySelector('.board').addEventListener('drop',e=>{
+  if(state.moving)return;
+  const name=e.dataTransfer.getData('text/plain');if(!name)return;
+  const side=state.boatSide;
+  if(state.positions[name]===side){state.positions[name]='BOAT';}
+  else if(state.positions[name]==='BOAT'){state.positions[name]=side;}
+  render();
+});
+
+/* Buttons */
+$("#startBtn").addEventListener('click',()=>{document.querySelector('#menu').classList.add('hidden');document.querySelector('#game').classList.remove('hidden');startStage(0);});
+$("#moveBtn").addEventListener('click',moveBoat);
+$("#rulesBtn").addEventListener('click',()=>$("#rulesModal").style.display='flex');
+$("#closeRules").addEventListener('click',()=>$("#rulesModal").style.display='none');
+$("#resetBtn").addEventListener('click',()=>startStage(state.stageIndex));
+nextBtn.addEventListener('click',()=>{overlay.style.display='none';startStage(state.stageIndex+1);});
+replayBtn.addEventListener('click',()=>{overlay.style.display='none';startStage(state.stageIndex);});
+</script>
+</body>
+</html>
