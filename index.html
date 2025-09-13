@@ -3,14 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>강 건너기 퍼즐 ⛵ (Stages)</title>
+<title>강 건너기 퍼즐 ⛵ (Stages, Fixed)</title>
 <style>
   :root {
     --bg:#f4fbff; --ink:#1f2937; --muted:#64748b; --accent:#0ea5e9;
     --good:#16a34a; --bad:#ef4444; --card:#ffffffcc;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Apple SD Gothic Neo,"Malgun Gothic",sans-serif;background:var(--bg)}
+  html,body{margin:0;padding:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Apple SD Gothic Neo,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--ink)}
+  .hidden{display:none !important}
 
   .center-col{min-height:100dvh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}
 
@@ -28,24 +29,38 @@
   .modal h3{margin:0 0 8px} .modal p{margin:0;line-height:1.6;color:var(--muted)}
 
   /* Board */
+  .container{max-width:1100px;margin:0 auto;padding:20px}
   .hud{display:flex;justify-content:space-between;align-items:center;margin:10px 0 18px;flex-wrap:wrap}
   .pill{padding:6px 10px;border-radius:999px;background:#eef6ff;color:#1d4ed8;border:1px solid #c7dbff;font-weight:700}
-  .board{position:relative;width:100%;height:540px;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;background:#dff3ff;
+
+  .board{position:relative;width:100%;height:540px;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;background:#bfe8ff;
          box-shadow:0 10px 24px rgba(0,0,0,.06)}
-  .river{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:40%;
-    background:repeating-radial-gradient(circle at 20px 20px,#8dd7ff 0 20px,#54b9f0 20px 40px);
-    animation:wave 6s linear infinite;}
-  @keyframes wave {
-    from { background-position:0 0; }
-    to   { background-position:80px 40px; }
+
+  /* River (static, wavy edges via layered gradients) */
+  .river{
+    position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:40%;
+    background:
+      radial-gradient(120px 60px at 10% 15%, #ffffff60 0 60%, transparent 61%) repeat-y,
+      radial-gradient(120px 60px at 90% 35%, #ffffff50 0 60%, transparent 61%) repeat-y,
+      linear-gradient(180deg,#8dd7ff,#54b9f0 60%,#4aa8e0);
+    background-size: 100% 160px, 100% 220px, cover;
+    background-position: 0 0, 0 40px, 0 0;
+    border-left: 6px solid #9dd3ff55;
+    border-right: 6px solid #9dd3ff55;
   }
-  .bank{position:absolute;top:0;bottom:0;width:30%;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px;
-        background:linear-gradient(#cfe9a6,#a7d47d);box-shadow:inset 0 8px 14px rgba(0,0,0,.25)}
+
+  /* Banks */
+  .bank{
+    position:absolute;top:0;bottom:0;width:30%;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:10px 12px;
+    background:linear-gradient(#cfe9a6,#a7d47d);
+    box-shadow:inset 0 10px 18px rgba(0,0,0,.22), inset 0 -10px 14px rgba(0,0,0,.12);
+  }
   .bank.left{left:0;} .bank.right{right:0;}
   .bank-title{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-weight:800;background:#ffffffcc;padding:2px 10px;border-radius:999px}
+  .dock{display:flex;flex-wrap:wrap;gap:8px;z-index:2}
 
   /* Boat motion */
-  .boat-wrap{position:absolute;top:55%;transform:translate(-50%,-50%);transition:left 1.2s cubic-bezier(0.65,0,0.35,1);}
+  .boat-wrap{position:absolute;top:55%;transform:translate(-50%,-50%);transition:left 1.1s cubic-bezier(0.65,0,0.35,1);}
   .boat-wrap.moving{animation:bob 0.5s ease-in-out infinite alternate;}
   @keyframes bob {from{transform:translate(-50%,-50%) rotate(-1deg)} to{transform:translate(-50%,-52%) rotate(1deg)}}
   .boat{position:relative;width:320px;max-width:80%;height:110px;background:#8b5a2b;border-radius:12px;
@@ -59,11 +74,18 @@
          box-shadow:0 6px 12px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:42px;
          cursor:grab;transition:transform .1s ease;}
   .token:hover{transform:scale(1.05)}
+  .token:active{cursor:grabbing}
 
   /* Overlay */
   .result{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:10}
   .result .card{background:#fff;border-radius:18px;padding:24px;width:min(520px,88vw);text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.35)}
   .result h2{margin:0 0 10px} .result p{margin:6px 0 16px;color:var(--muted)}
+
+  @media (max-width: 720px){
+    .board{height:560px}
+    .token{width:72px;height:72px;font-size:36px}
+    .slot{width:72px;height:72px}
+  }
 </style>
 </head>
 <body>
@@ -89,6 +111,7 @@
 <section id="game" class="container hidden">
   <div class="hud">
     <div class="left">
+      <span class="pill">스테이지: <b id="stageName"></b></span>
       <span class="pill">보트 위치: <b id="boatSideLabel"></b></span>
       <span class="pill">경과시간: <b id="elapsed">00:00</b></span>
     </div>
@@ -102,7 +125,14 @@
   <div class="board">
     <div class="bank left"><div class="bank-title">왼쪽 둑</div><div class="dock" id="dock-left"></div></div>
     <div class="river"></div>
-    <div class="boat-wrap" id="boatWrap"><div class="boat"><div class="slots"><div class="slot" data-slot="person">사람</div><div class="slot" data-slot="cargo">화물</div></div></div></div>
+    <div class="boat-wrap" id="boatWrap">
+      <div class="boat" id="boat">
+        <div class="slots">
+          <div class="slot" id="slotA">사람</div>
+          <div class="slot" id="slotB">화물</div>
+        </div>
+      </div>
+    </div>
     <div class="bank right"><div class="bank-title">오른쪽 둑</div><div class="dock" id="dock-right"></div></div>
 
     <!-- 결과 -->
@@ -113,23 +143,26 @@
         <p id="timeMsg"></p>
         <button class="btn next" id="nextBtn">다음 스테이지</button>
         <button class="btn primary" id="replayBtn">다시 도전</button>
+        <button class="btn" id="homeBtn">처음으로</button>
       </div>
     </div>
   </div>
 </section>
 
 <script>
+/* ================== Stage definitions ================== */
 const STAGES = [
   {
-    name:"늑대-양-양배추",
+    name:"1단계 · 늑대-양-양배추",
     tokens:["person","wolf","goat","cabbage"],
-    capacity:2, // 사람+1
-    ruleText:"보트에는 반드시 사람이 타야 하며, 한 번에 사람+1개만 옮길 수 있습니다. 사람이 없는 둑에 늑대+양 또는 양+양배추가 남으면 게임 오버!",
+    capacity:2, // 사람 + 1개
+    requiresPerson:true,
+    ruleText:"보트에는 반드시 사람이 타야 하며, 한 번에 사람과 함께 1개만 옮길 수 있습니다. 사람이 없는 둑에 늑대+양 또는 양+양배추가 남으면 게임 오버!",
     checkFail:(positions,boatSide)=>{
       const bank={L:[],R:[]};
-      for (let t in positions){
-        const p=positions[t]==='BOAT'?boatSide:positions[t];
-        bank[p].push(t);
+      for(const t in positions){
+        const side = positions[t]==='BOAT' ? boatSide : positions[t];
+        bank[side].push(t);
       }
       if(!bank.L.includes('person')){
         if(bank.L.includes('wolf')&&bank.L.includes('goat'))return"왼쪽 둑에서 늑대가 양을 먹었습니다!";
@@ -143,121 +176,259 @@ const STAGES = [
     }
   },
   {
-    name:"선교사-식인종",
+    name:"2단계 · 선교사-식인종",
     tokens:["M1","M2","M3","C1","C2","C3"],
-    capacity:2,
-    ruleText:"배에는 최대 2명까지 탈 수 있으며, 어떤 둑에서든 식인종 수가 선교사 수보다 많으면 게임 오버!",
+    capacity:2, // 두 명까지
+    requiresPerson:false,
+    ruleText:"배에는 최대 2명까지 탈 수 있으며, 어느 둑에서든 선교사가 1명 이상 있을 때 식인종 수가 선교사 수를 넘으면 게임 오버!",
     checkFail:(positions,boatSide)=>{
-      const bank={L:{M:0,C:0},R:{M:0,C:0}};
-      for (let t in positions){
-        const side=positions[t]==='BOAT'?boatSide:positions[t];
-        if(t.startsWith('M'))bank[side].M++;
-        else bank[side].C++;
+      const count={L:{M:0,C:0},R:{M:0,C:0}};
+      for(const t in positions){
+        const side = positions[t]==='BOAT' ? boatSide : positions[t];
+        if(t.startsWith('M')) count[side].M++; else count[side].C++;
       }
-      for(let side of ['L','R']){
-        if(bank[side].M>0 && bank[side].C>bank[side].M) return `${side==='L'?'왼쪽':'오른쪽'} 둑에서 식인종이 선교사를 잡아먹었습니다!`;
+      for(const side of ['L','R']){
+        if(count[side].M>0 && count[side].C>count[side].M){
+          return `${side==='L'?'왼쪽':'오른쪽'} 둑에서 식인종이 선교사를 잡아먹었습니다!`;
+        }
       }
       return null;
     }
   }
 ];
 
-let state={stageIndex:0,positions:{},boatSide:'L',moving:false,startTs:null,timerId:null};
-const $=s=>document.querySelector(s);
-const leftDock=$("#dock-left"),rightDock=$("#dock-right"),boatWrap=$("#boatWrap");
-const personSlot=document.querySelector('[data-slot="person"]');
-const cargoSlot=document.querySelector('[data-slot="cargo"]');
-const overlay=$("#overlay"),overlayTitle=$("#overlayTitle"),overlayMsg=$("#overlayMsg"),timeMsg=$("#timeMsg");
-const nextBtn=$("#nextBtn"),replayBtn=$("#replayBtn");
+/* ================== State ================== */
+const $ = s => document.querySelector(s);
+const leftDock = $('#dock-left'), rightDock = $('#dock-right');
+const boatWrap = $('#boatWrap'), boat = $('#boat');
+const slotA = $('#slotA'), slotB = $('#slotB');
 
+let state = {
+  stageIndex: 0,
+  positions: {},         // name -> 'L'|'R'|'BOAT'
+  boatSide: 'L',         // 'L'|'R'
+  moving: false,
+  startTs: null,
+  timerId: null
+};
+
+function boatLeftPercent(side){ return side==='L' ? 36 : 64; }
+function emoji(name){
+  if(name==='person')return'🧍';
+  if(name==='wolf')return'🐺';
+  if(name==='goat')return'🐑';
+  if(name==='cabbage')return'🥬';
+  return name.startsWith('M')?'🧑‍🦳':'🧛';
+}
+
+/* ================== Init / Stage control ================== */
 function startStage(idx){
-  state.stageIndex=idx;state.boatSide='L';state.moving=false;
-  state.positions={};for(const t of STAGES[idx].tokens)state.positions[t]='L';
-  boatWrap.style.left="36%";
-  $("#ruleText").textContent=STAGES[idx].ruleText;
-  startTimer();render();
-}
-function render(){
-  leftDock.innerHTML='';rightDock.innerHTML='';
-  for(const t of STAGES[state.stageIndex].tokens){
-    const pos=state.positions[t];
-    const el=makeToken(t);
-    if(pos==='L')leftDock.appendChild(el);
-    else if(pos==='R')rightDock.appendChild(el);
-    else if(pos==='BOAT'){
-      (personSlot.querySelector('.token')?cargoSlot:personSlot).appendChild(el);
-    }
+  const st = STAGES[idx];
+  state.stageIndex = idx;
+  state.positions = {};
+  st.tokens.forEach(t => state.positions[t]='L');
+  state.boatSide = 'L';
+  state.moving = false;
+
+  // 보트 초기 좌표
+  boatWrap.style.left = boatLeftPercent('L') + '%';
+
+  // 슬롯 라벨(1단계: 사람/화물, 2단계: 좌석1/좌석2)
+  if(st.requiresPerson){
+    slotA.textContent = '사람'; slotB.textContent = '화물';
+  }else{
+    slotA.textContent = '좌석1'; slotB.textContent = '좌석2';
   }
-  if(!personSlot.querySelector('.token'))personSlot.textContent='사람';
-  if(!cargoSlot.querySelector('.token'))cargoSlot.textContent='화물';
-  $("#boatSideLabel").textContent=state.boatSide==='L'?'왼쪽 둑':'오른쪽 둑';
-  const fail=STAGES[state.stageIndex].checkFail(state.positions,state.boatSide);
-  if(fail)return showOverlay(false,fail);
-  if(Object.values(state.positions).every(v=>'R'===v))return showOverlay(true,"성공!");
+
+  $('#stageName').textContent = st.name;
+  $('#ruleText').textContent = st.ruleText;
+  $('#boatSideLabel').textContent = '왼쪽 둑';
+  hideOverlay();
+  startTimer();
+  render();
 }
+
+function enterGame(){
+  $('#menu').classList.add('hidden');
+  $('#game').classList.remove('hidden');
+  window.scrollTo({top:0,behavior:'smooth'});
+  startStage(0);
+}
+
+function enterMenu(){
+  $('#menu').classList.remove('hidden');
+  $('#game').classList.add('hidden');
+  stopTimer();
+}
+
+/* ================== Timer ================== */
+function startTimer(){
+  state.startTs = Date.now();
+  clearInterval(state.timerId);
+  state.timerId = setInterval(()=>{
+    $('#elapsed').textContent = formatTime(Date.now()-state.startTs);
+  }, 250);
+}
+function stopTimer(){ clearInterval(state.timerId); state.timerId=null; }
+function formatTime(ms){ const s=Math.floor(ms/1000), m=Math.floor(s/60); return `${m.toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`; }
+
+/* ================== Rendering ================== */
 function makeToken(name){
-  const el=document.createElement('div');el.className='token';el.draggable=true;
-  el.textContent=emoji(name);
-  el.addEventListener('dragstart',e=>{
-    if(state.moving)e.preventDefault();
-    else e.dataTransfer.setData('text/plain',name);
+  const el = document.createElement('div');
+  el.className = 'token'; el.draggable = true; el.dataset.id = name;
+  el.textContent = emoji(name);
+  el.addEventListener('dragstart', e=>{
+    if(state.moving){ e.preventDefault(); return; }
+    e.dataTransfer.setData('text/plain', name);
   });
   return el;
 }
-function emoji(name){
-  if(name==='person')return'🧍';if(name==='wolf')return'🐺';
-  if(name==='goat')return'🐑';if(name==='cabbage')return'🥬';
-  return name.startsWith('M')?'🧑‍🦳':'🧛';
-}
-function moveBoat(){
-  if(state.moving)return;
-  const stage=STAGES[state.stageIndex];
-  const boatCount=Object.values(state.positions).filter(v=>v==='BOAT').length;
-  if(boatCount===0)return;
-  if(stage===STAGES[0] && !Object.keys(state.positions).some(k=>k==='person'&&state.positions[k]==='BOAT'))return;
-  if(boatCount>stage.capacity)return;
-  state.boatSide=state.boatSide==='L'?'R':'L';state.moving=true;
-  boatWrap.classList.add('moving');
-  boatWrap.style.left=state.boatSide==='L'?'36%':'64%';
-  setTimeout(()=>{
-    boatWrap.classList.remove('moving');
-    for(const k in state.positions)if(state.positions[k]==='BOAT')state.positions[k]=state.boatSide;
-    state.moving=false;render();
-  },1200);
-}
-function showOverlay(success,msg){
-  stopTimer();overlay.style.display='flex';
-  overlayTitle.textContent=success?'🎉 성공!':'❌ 실패';
-  overlayMsg.textContent=msg;timeMsg.textContent=`기록: ${formatTime(Date.now()-state.startTs)}`;
-  nextBtn.style.display=success && state.stageIndex<STAGES.length-1?'inline-block':'none';
-  replayBtn.style.display='inline-block';
-}
-function startTimer(){
-  state.startTs=Date.now();clearInterval(state.timerId);
-  state.timerId=setInterval(()=>$("#elapsed").textContent=formatTime(Date.now()-state.startTs),250);
-}
-function stopTimer(){clearInterval(state.timerId);}
-function formatTime(ms){const s=Math.floor(ms/1000),m=Math.floor(s/60);return`${m}:${(s%60).toString().padStart(2,'0')}`}
 
-/* Drag target setup */
-document.querySelector('.board').addEventListener('dragover',e=>e.preventDefault());
-document.querySelector('.board').addEventListener('drop',e=>{
-  if(state.moving)return;
-  const name=e.dataTransfer.getData('text/plain');if(!name)return;
-  const side=state.boatSide;
-  if(state.positions[name]===side){state.positions[name]='BOAT';}
-  else if(state.positions[name]==='BOAT'){state.positions[name]=side;}
+function clearSlots(){
+  // 완전 초기화 → 복사 버그 방지
+  leftDock.replaceChildren();
+  rightDock.replaceChildren();
+  slotA.replaceChildren();
+  slotB.replaceChildren();
+}
+
+function render(){
+  clearSlots();
+  const st = STAGES[state.stageIndex];
+
+  // 토큰 배치
+  for(const name of st.tokens){
+    const pos = state.positions[name];
+    const el = makeToken(name);
+
+    if(pos==='L'){ leftDock.appendChild(el); }
+    else if(pos==='R'){ rightDock.appendChild(el); }
+    else if(pos==='BOAT'){
+      if(st.requiresPerson){
+        // 1단계: 사람은 A, 화물은 B
+        if(name==='person') slotA.appendChild(el);
+        else slotB.appendChild(el);
+      }else{
+        // 2단계: 좌석1 우선, 꽉 차면 좌석2
+        (slotA.childElementCount===0 ? slotA : slotB).appendChild(el);
+      }
+    }
+  }
+
+  // 빈 슬롯 라벨 복원
+  if(slotA.childElementCount===0) slotA.textContent = st.requiresPerson ? '사람' : '좌석1';
+  if(slotB.childElementCount===0) slotB.textContent = st.requiresPerson ? '화물' : '좌석2';
+
+  // 라벨/좌표
+  $('#boatSideLabel').textContent = state.boatSide==='L'?'왼쪽 둑':'오른쪽 둑';
+  boatWrap.style.left = boatLeftPercent(state.boatSide) + '%';
+
+  // 엔드 스테이트 판정
+  const fail = st.checkFail(state.positions, state.boatSide);
+  if(fail){ showOverlay(false, fail); return; }
+  if(Object.values(state.positions).every(v => v==='R')){
+    showOverlay(true, '성공!');
+  }
+}
+
+/* ================== Drag & Drop (boat/docks만 허용) ================== */
+function currentBoatCount(){ return Object.values(state.positions).filter(v=>v==='BOAT').length; }
+function currentBoatNonPerson(){ return Object.entries(state.positions).filter(([k,v])=>v==='BOAT' && k!=='person').length; }
+
+boat.addEventListener('dragover', e=>{ if(!state.moving) e.preventDefault(); });
+boat.addEventListener('drop', e=>{
+  if(state.moving) return;
+  e.preventDefault();
+  const name = e.dataTransfer.getData('text/plain'); if(!name) return;
+  const st = STAGES[state.stageIndex];
+
+  // 같은 둑에 있거나 이미 보트에 있는 경우만
+  const sameSide = (state.positions[name]===state.boatSide) || (state.positions[name]==='BOAT');
+  if(!sameSide) return;
+
+  // 용량 체크 (새로 태우려는 경우에만)
+  if(state.positions[name]!=='BOAT'){
+    const count = currentBoatCount();
+    if(count >= st.capacity) return;                // 용량 초과 금지
+    if(st.requiresPerson && name!=='person' && currentBoatNonPerson()>=1) return; // 1단계 화물 1개 제한
+  }
+
+  // 탑승/하차 토글
+  state.positions[name] = (state.positions[name]==='BOAT') ? state.boatSide : 'BOAT';
   render();
 });
 
-/* Buttons */
-$("#startBtn").addEventListener('click',()=>{document.querySelector('#menu').classList.add('hidden');document.querySelector('#game').classList.remove('hidden');startStage(0);});
-$("#moveBtn").addEventListener('click',moveBoat);
-$("#rulesBtn").addEventListener('click',()=>$("#rulesModal").style.display='flex');
-$("#closeRules").addEventListener('click',()=>$("#rulesModal").style.display='none');
-$("#resetBtn").addEventListener('click',()=>startStage(state.stageIndex));
-nextBtn.addEventListener('click',()=>{overlay.style.display='none';startStage(state.stageIndex+1);});
-replayBtn.addEventListener('click',()=>{overlay.style.display='none';startStage(state.stageIndex);});
+[leftDock, rightDock].forEach(dock=>{
+  dock.addEventListener('dragover', e=>{ if(!state.moving) e.preventDefault(); });
+  dock.addEventListener('drop', e=>{
+    if(state.moving) return;
+    e.preventDefault();
+    const name = e.dataTransfer.getData('text/plain'); if(!name) return;
+    const targetSide = (dock===leftDock)?'L':'R';
+    // 보트가 해당 둑에 있을 때만 하차 허용
+    if(state.boatSide!==targetSide) return;
+    if(state.positions[name]!=='BOAT') return;
+    state.positions[name] = targetSide;
+    render();
+  });
+});
+
+/* ================== Boat move ================== */
+function moveBoat(){
+  if(state.moving) return;
+  const st = STAGES[state.stageIndex];
+  const boatCount = currentBoatCount();
+
+  if(boatCount===0) return;
+  if(st.requiresPerson && state.positions['person']!=='BOAT') return; // 1단계: 사람 필수
+  if(boatCount > st.capacity) return;
+
+  state.boatSide = (state.boatSide==='L') ? 'R' : 'L';
+  state.moving = true;
+  boatWrap.classList.add('moving');
+  boatWrap.style.left = boatLeftPercent(state.boatSide) + '%';
+
+  setTimeout(()=>{
+    boatWrap.classList.remove('moving');
+    for(const k in state.positions){
+      if(state.positions[k]==='BOAT') state.positions[k] = state.boatSide;
+    }
+    state.moving = false;
+    render();
+  }, 1100);
+}
+
+/* ================== Overlay ================== */
+const overlay = $('#overlay'), overlayTitle = $('#overlayTitle'), overlayMsg = $('#overlayMsg'), timeMsg = $('#timeMsg');
+const nextBtn = $('#nextBtn'), replayBtn = $('#replayBtn'), homeBtn = $('#homeBtn');
+
+function showOverlay(success,msg){
+  stopTimer();
+  overlayTitle.textContent = success ? '🎉 성공!' : '❌ 실패';
+  overlayMsg.textContent = msg || (success?'성공했습니다!':'실패했습니다.');
+  timeMsg.textContent = `기록: ${formatTime(Date.now()-state.startTs)}`;
+  overlay.style.display = 'flex';
+
+  // 버튼 표시 조건
+  nextBtn.style.display = (success && state.stageIndex < STAGES.length-1) ? 'inline-block' : 'none';
+  homeBtn.style.display = (success && state.stageIndex === STAGES.length-1) ? 'inline-block' : 'none';
+  replayBtn.style.display = 'inline-block';
+}
+
+function hideOverlay(){ overlay.style.display = 'none'; }
+
+/* ================== Wire up ================== */
+$('#startBtn').addEventListener('click', enterGame);
+$('#rulesBtn').addEventListener('click', ()=>{ $('#ruleText').textContent = STAGES[state.stageIndex].ruleText; $('#rulesModal').style.display='flex'; });
+$('#closeRules').addEventListener('click', ()=> $('#rulesModal').style.display='none');
+$('#resetBtn').addEventListener('click', ()=> startStage(state.stageIndex));
+$('#moveBtn').addEventListener('click', moveBoat);
+
+nextBtn.addEventListener('click', ()=>{ hideOverlay(); startStage(state.stageIndex+1); });
+replayBtn.addEventListener('click', ()=>{ hideOverlay(); startStage(state.stageIndex); });
+homeBtn.addEventListener('click', ()=>{ hideOverlay(); enterMenu(); });
+
+/* ================== Start ================== */
 </script>
 </body>
 </html>
